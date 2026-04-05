@@ -110,7 +110,19 @@ class system:
         rR = def_reflection_coeff(self.matm, self.matR, self.deltaR)
 
         # define frequency (wave vector) integrand/summand
-        return lambda k0: func(k0, self.d, self.matm.epsilon, rL, rR, epsrel=epsrel, epsabs=epsabs)
+        return lambda k0: func(
+            k0,
+            self.d,
+            self.matm,
+            self.matL,
+            self.deltaL,
+            self.matR,
+            self.deltaR,
+            rL,
+            rR,
+            epsrel=epsrel,
+            epsabs=epsabs,
+        )
 
     def calculate(self, observable, ht_limit=False, fs='psd', epsrel=1.e-8, epsabs=0.0, N=None):
         '''

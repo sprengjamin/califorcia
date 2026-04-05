@@ -1,8 +1,16 @@
 from math import sqrt
 
+import numpy as np
 from numpy.testing import assert_allclose
 
-from califorcia.plane import def_fresnel_coefficients, def_reflection_coeff, kappa
+from califorcia.plane import (
+    def_fresnel_coefficients,
+    def_reflection_coeff,
+    evaluate_eps_stack,
+    fresnel_coefficients_finite,
+    kappa,
+    reflection_coefficients_finite,
+)
 from califorcia.materials import gold_drude, gold_plasma, pec, teflon, vacuum
 
 
@@ -46,3 +54,20 @@ def test_many_identical_material_layers_reduce_to_same_reflection():
     )
     single = def_reflection_coeff(vacuum, [gold_drude], [])
     assert_allclose(multilayer(1.2, 0.7), single(1.2, 0.7), rtol=1e-12)
+
+
+def test_finite_frequency_fresnel_helper_matches_public_interface():
+    k0 = 1.2
+    k = 0.7
+    public = def_fresnel_coefficients(vacuum, teflon)
+    helper = fresnel_coefficients_finite(vacuum.epsilon(k0 * 299792458.0), teflon.epsilon(k0 * 299792458.0), k0, k)
+    assert_allclose(public(k0, k), helper, rtol=1e-12)
+
+
+def test_finite_frequency_reflection_helper_matches_public_interface():
+    k0 = 1.2
+    k = 0.7
+    public = def_reflection_coeff(vacuum, [teflon, gold_drude, teflon], [5e-9, 7e-9])
+    eps_layers = evaluate_eps_stack([teflon, gold_drude, teflon], k0 * 299792458.0)
+    helper = reflection_coefficients_finite(vacuum.epsilon(k0 * 299792458.0), eps_layers, np.array([5e-9, 7e-9]), k0, k)
+    assert_allclose(public(k0, k), helper, rtol=1e-12)
