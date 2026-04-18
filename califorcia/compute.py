@@ -1,13 +1,14 @@
 import numpy as np
-from .plane import def_reflection_coeff
+from .plane import def_reflection_coeff, def_longitudinal_reflection_coeff
 from .interaction import k0_func_energy, k0_func_pressure, k0_func_pressuregradient
+from .longitudinal_interaction import k0_func_longitudinal_energy, k0_func_longitudinal_pressure
 from .frequency_summation import psd_sum, msd_sum
 from scipy.constants import k as kB
 from scipy.constants import pi, c, hbar
 from scipy.integrate import quad
 from math import inf
 
-SUPPORTED_MATERIALCLASSES = {"dielectric", "drude", "plasma", "pec"}
+SUPPORTED_MATERIALCLASSES = {"dielectric", "drude", "plasma", "pec", "electrolites"}
 
 class system:
     '''Class that defines the system of two parallel plates.
@@ -98,19 +99,38 @@ class system:
         '''
         if observable == 'energy':
             func = k0_func_energy
+            rL_func = def_reflection_coeff
+            rR_func = def_reflection_coeff
         elif observable == 'pressure':
             func = k0_func_pressure
+            rL_func = def_reflection_coeff
+            rR_func = def_reflection_coeff
         elif observable == 'pressuregradient':
             func = k0_func_pressuregradient
+            rL_func = def_reflection_coeff
+            rR_func = def_reflection_coeff
+
+        elif observable == 'longitudinal_energy':
+            func = k0_func_longitudinal_energy
+            rL_func = def_longitudinal_reflection_coeff
+            rR_func = def_longitudinal_reflection_coeff
+        elif observable == 'longitudinal_pressure':
+            func = k0_func_longitudinal_pressure
+            rL_func = def_longitudinal_reflection_coeff
+            rR_func = def_longitudinal_reflection_coeff
+
         else:
             raise ValueError('Supported values for \'observable\' are either \'energy\', \'pressure\' or \'pressuregradient\'!')
 
         # define reflection coefficients
-        rL = def_reflection_coeff(self.matm, self.matL, self.deltaL)
-        rR = def_reflection_coeff(self.matm, self.matR, self.deltaR)
+        rL = rL_func(self.matm, self.matL, self.deltaL)
+        rR = rR_func(self.matm, self.matR, self.deltaR)
 
         # define frequency (wave vector) integrand/summand
-        return lambda k0: func(k0, self.d, self.matm.epsilon, rL, rR, epsrel=epsrel, epsabs=epsabs)
+        if 'longitudinal' in observable:
+            return lambda k0: func(k0, self.d, self.matm, rL, rR, epsrel=epsrel, epsabs=epsabs)
+        else:
+            return lambda k0: func(k0, self.d, self.matm.epsilon, rL, rR, epsrel=epsrel, epsabs=epsabs)
 
     def calculate(self, observable, ht_limit=False, fs='psd', epsrel=1.e-8, epsabs=0.0, N=None):
         '''
@@ -171,3 +191,38 @@ class system:
     def pressuregradient(self, ht_limit=False, fs='psd', epsrel=1.e-8, epsabs=0.0, N=None):
         # Calculate the Casimir pressure
         return self.calculate('pressuregradient', ht_limit=ht_limit, fs=fs, epsrel=epsrel, epsabs=epsabs, N=N)
+
+    def calculate_longitudinal(self, observable, epsrel=1.e-8, epsabs=0.0):
+        '''
+        Calculate the Casimir interaction (according to the specified observable)
+        due to the longitudinal scattering channel (for media with ions in solution).
+
+        Contains only n=0 term in the frequency summation. 
+        See: 
+          * https://doi.org/10.1140/epjd/e2019-100225-8
+          * https://doi.org/10.1103/PhysRevA.111.012816
+
+
+        Parameters
+        ----------
+        observable : str
+            either 'energy' or 'pressure' 
+        epsrel : float
+            Target precision for frequency summation (not used for n=0)
+        epsabs : float
+            Absolute target precision for the radial and zero-temperature quadratures
+
+        Returns
+        -------
+        float
+            the value of the Casimir interaction
+        '''
+        self.f = self.frequency_function('longitudinal_'+observable, epsrel=epsrel, epsabs=epsabs)
+
+        # For longitudinal, only n=0 contribution is relevant as per Ref 2.
+        # F0 = (kBT/2) * f(0)
+        # f(0) returns sum over polarizations (already handled in longitudinal_interaction.py)
+        # Actually longitudinal_interaction.py returns a scalar (sum of polarizations not applicable here as it's a single mode)
+        
+        self.n0 = 0.5 * self.T * kB * self.f(0.)
+        return self.n0

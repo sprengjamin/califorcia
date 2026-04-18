@@ -23,11 +23,12 @@ The package includes predefined materials under `califorcia.materials`, includin
 - `SiC`
 - `polystyrene`
 - `sodalime`
+- `salt_water`
 
 Import them as:
 
 ```python
-from califorcia.materials import gold, vacuum, teflon
+from califorcia.materials import gold, vacuum, salt_water
 ```
 
 ## Material Interface
@@ -37,17 +38,26 @@ A material must expose:
 - `materialclass`
 - `epsilon(xi)`
 
-Example:
+Alternatively, you can use the predefined models in `califorcia.models`:
+
+- `LorentzModel(f_list, w_list, g_list, eps_inf=1.0)`
+- `SellmeierModel(B_list, C_list)`
+- `DrudeModel(wp, gamma)`
+- `PlasmaModel(wp)`
+- `DebyeModel(epsD, epsInf, tau)`
+- `ElectrolyteModel(solvent_model, kappa_D, gamma=0.0)`
+- `CombinedModel(models)`
+- `ConstantModel(eps)`
+
+Example using a class-based model:
 
 ```python
-class UserMaterial:
-    def __init__(self):
-        self.materialclass = "dielectric"
+from califorcia.models import DrudeModel
+from scipy.constants import hbar, e
 
-    def epsilon(self, xi):
-        wj = 1.911e15
-        cj = 1.282
-        return 1.0 + cj * wj**2 / (wj**2 + xi**2)
+wp = 9.0 * e / hbar
+gamma = 0.035 * e / hbar
+gold = DrudeModel(wp, gamma)
 ```
 
 The argument `xi` is the imaginary angular frequency in `rad/s`.
@@ -85,6 +95,16 @@ In practice, these materials provide:
 ### `"pec"`
 
 Perfect electric conductor handling is built into the reflection-coefficient logic.
+
+### `"electrolites"`
+
+Specialized handling for electrolyte solutions with spatial dispersion and ionic screening.
+
+Expected behavior:
+
+- At $k_0 = 0$ (zero frequency), it implements strong screening ($r_{TM} = -1$) and supports the longitudinal scattering channel.
+- Must define `kappa_D` (Debye screening length in m$^{-1}$) and `solvent_model` (an instance of `MaterialModel`).
+- Reference: [Phys. Rev. A 111, 012816 (2025)](https://doi.org/10.1103/PhysRevA.111.012816)
 
 ## Notes On Implementation
 

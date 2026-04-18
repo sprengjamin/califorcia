@@ -54,6 +54,17 @@ Supported `observable` values:
 - `"pressure"`
 - `"pressuregradient"`
 
+### `system.calculate_longitudinal(observable, epsrel=1e-8, epsabs=0.0)`
+
+Calculates the Casimir interaction due to the longitudinal scattering channel, specifically for media with ions in solution (electrolytes).
+
+As per [Phys. Rev. A 111, 012816 (2025)](https://doi.org/10.1103/PhysRevA.111.012816), this method only considers the zero-frequency ($n=0$) contribution, which is the only relevant term for this channel in electrolyte systems.
+
+Supported `observable` values:
+
+- `"energy"`
+- `"pressure"`
+
 ## Numerical Options
 
 ### `ht_limit`

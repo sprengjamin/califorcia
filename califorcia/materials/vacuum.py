@@ -1,4 +1,3 @@
-materialclass = "dielectric"
-def epsilon(xi):
-    return 1.
-
+from ..models import VacuumModel
+epsilon = VacuumModel()
+materialclass = epsilon.materialclass

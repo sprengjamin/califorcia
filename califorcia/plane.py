@@ -58,11 +58,113 @@ def def_reflection_coeff(medium, materials, thicknesses):
 
     return reflection_coeff
 
+def def_longitudinal_reflection_coeff(medium, materials, thicknesses):
+    """
+    Define longitudinal reflection coefficients of the plane.
+    Currently only implemented for zero frequency.
+    """
+    Nlayers = len(materials)
+    interface_coefficients = [def_longitudinal_fresnel_coefficients(medium, materials[0])]
+    interface_coefficients.extend(
+        def_longitudinal_fresnel_coefficients(materials[idx], materials[idx + 1])
+        for idx in range(Nlayers - 1)
+    )
+
+    if Nlayers == 1:
+        return interface_coefficients[0]
+
+    # For longitudinal waves, we might need a recursive relation similar to transverse.
+    # However, Ref. 2 says for gold slab at n=0, r_ll = -1 independent of d.
+    # We will implement the recursive relation for generality.
+    
+    def reflection_coeff(k0, k):
+        if k0 != 0.:
+            return 0. # Longitudinal channel only relevant at k0=0
+            
+        effective_reflection = interface_coefficients[-1](k0, k)
+
+        for idx in range(Nlayers - 2, 0, -1):
+            kappa_l = sqrt(k**2 + materials[idx].kappa_D**2) if materials[idx].materialclass == "electrolites" else k
+            effective_reflection = _combine_longitudinal_reflection_coefficients(
+                interface_coefficients[idx](k0, k),
+                effective_reflection,
+                kappa_l,
+                thicknesses[idx],
+            )
+
+        kappa_l_0 = sqrt(k**2 + materials[0].kappa_D**2) if materials[0].materialclass == "electrolites" else k
+        return _combine_longitudinal_reflection_coefficients(
+            interface_coefficients[0](k0, k),
+            effective_reflection,
+            kappa_l_0,
+            thicknesses[0],
+        )
+
+    return reflection_coeff
+
+def _combine_longitudinal_reflection_coefficients(r_left, r_right, kappa_l, thickness):
+    # Same form as transverse for a single mode
+    phase = exp(-2 * kappa_l * thickness)
+    return (r_left + r_right * phase) / (1 + r_left * r_right * phase)
+
+def def_longitudinal_fresnel_coefficients(mat1, mat2):
+    """
+    Defines longitudinal Fresnel reflection coefficients for a halfspace at k0=0.
+    Eq. (A5) of Phys. Rev. A 111, 012816 (2025).
+    """
+    def fresnel_coefficients(k0, k):
+        if k0 != 0.:
+            return 0.
+            
+        # PEC limit
+        if mat1.materialclass == "pec":
+            return -1.
+        if mat2.materialclass == "pec":
+            return 1.
+            
+        # Ref 2 says for gold-water interface r_ll = -1.
+        # Let's use the general formula from Eq. (A5)
+        # r_ll = (eps2*k3 + eps3*k2 + (k*kl/epsb)*eps2*(eps3-epsb)) / (eps2*k3 + eps3*k2 - (k*kl/epsb)*eps2*(eps3-epsb))
+        # At k0=0, k3 = k2 = k.
+        # r_ll = (eps2 + eps3 + (kl/epsb)*eps2*(eps3-epsb)) / (eps2 + eps3 - (kl/epsb)*eps2*(eps3-epsb))
+        
+        # If mat1 is electrolyte (nonlocal) and mat2 is local (dielectric/drude/plasma)
+        if mat1.materialclass == "electrolites":
+            eps1 = mat1.epsilon(0.)
+            # Access solvent_model and kappa_D whether mat1 is a module or an object
+            solvent_model = getattr(mat1, "solvent_model", getattr(getattr(mat1, "epsilon", None), "solvent_model", None))
+            kappa_D = getattr(mat1, "kappa_D", getattr(getattr(mat1, "epsilon", None), "kappa_D", None))
+            
+            eps_b = solvent_model.epsilon(0.)
+            eps_s = mat2.epsilon(0.)
+            kappa_l = sqrt(k**2 + kappa_D**2)
+            
+            # For metal (drude/plasma), eps_s -> inf
+            if mat2.materialclass in ["drude", "plasma"]:
+                return -1.
+                
+            # If mat2 is dielectric
+            num = eps_s + eps1 + (kappa_l / eps_b) * eps_s * (eps1 - eps_b)
+            den = eps_s + eps1 - (kappa_l / eps_b) * eps_s * (eps1 - eps_b)
+            return num / den
+
+        # If mat1 is local and mat2 is electrolyte
+        if mat2.materialclass == "electrolites":
+            eps_s = mat1.epsilon(0.)
+            solvent_model = getattr(mat2, "solvent_model", getattr(getattr(mat2, "epsilon", None), "solvent_model", None))
+            kappa_D = getattr(mat2, "kappa_D", getattr(getattr(mat2, "epsilon", None), "kappa_D", None))
+            
+            eps_b = solvent_model.epsilon(0.)
+            kappa_l = sqrt(k**2 + kappa_D**2)
+            return (1 - (kappa_l/k)*(eps_s/eps_b)) / (1 + (kappa_l/k)*(eps_s/eps_b))
+
+        return 0. # No longitudinal waves in local-local interface
+        
+    return fresnel_coefficients
+
 def kappa(mat, k0, k):
     if k0 == 0.:
-        if mat.materialclass == "dielectric":
-            return k
-        elif mat.materialclass == "drude":
+        if mat.materialclass in ["dielectric", "drude", "electrolites"]:
             return k
         elif mat.materialclass == "plasma":
             Kp = mat.wp/c
@@ -95,6 +197,10 @@ def def_fresnel_coefficients(mat1, mat2):
         if mat2.materialclass == "pec":
             return 1., -1.
         if k0 == 0.:
+            # Special case for electrolytes: screening at zero frequency
+            if mat1.materialclass == "electrolites" or mat2.materialclass == "electrolites":
+                return -1., 0.
+
             if mat1.materialclass == "dielectric":
                 if mat2.materialclass == "dielectric":
                     eps1 = mat1.epsilon(0.)

@@ -1,5 +1,3 @@
-from math import inf
-materialclass = 'pec'
-
-def epsilon(xi):
-    return inf
+from ..models import PECModel
+epsilon = PECModel()
+materialclass = epsilon.materialclass

@@ -11,6 +11,7 @@ It supports:
 - Homogeneous half-spaces and coated planes
 - Built-in and user-defined material response models
 - Recursive multilayer reflection construction for layered coatings
+- **Specialized support for electrolyte media and the longitudinal scattering channel**
 
 <p align="center">
   <img src="images/casimir_effect.jpg" height="60%" width="60%">
@@ -107,6 +108,7 @@ The repository ships predefined materials in [`califorcia/materials`](califorcia
 - `Si`, `pdoped_Si`, `SiC`
 - `polystyrene`
 - `sodalime`
+- `salt_water`
 
 ## Documentation
 
