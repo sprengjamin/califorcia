@@ -94,6 +94,7 @@ The constructor raises `ValueError` for invalid physical or material inputs, inc
 - negative coating thickness
 - unsupported `materialclass`
 - plasma materials that do not define `wp`
+- materials whose `mu` attribute is not callable
 
 `calculate(...)` raises `ValueError` for unsupported observables or unsupported frequency-summation methods.
 

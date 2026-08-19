@@ -1,5 +1,5 @@
 import numpy as np
-from .plane import def_reflection_coeff
+from .plane import def_reflection_coeff, permeability
 from .interaction import k0_func_energy, k0_func_pressure, k0_func_pressuregradient
 from .frequency_summation import psd_sum, msd_sum
 from scipy.constants import k as kB
@@ -27,6 +27,9 @@ class system:
             the coating facing the medium and so on.
         matm : object
             Material of medium
+
+            Materials may optionally define a magnetic permeability `mu(xi)` on the imaginary frequency axis.
+            Materials without it are treated as non-magnetic, i.e. mu = 1.
         deltaL, deltaR : list
             Thicknesses of the coating layers with the first one corresponding to the thickness of the coating facing
             the medium and so on.
@@ -62,6 +65,12 @@ class system:
 
         if materialclass == "plasma" and not hasattr(material, "wp"):
             raise ValueError(f"Material '{location}' with materialclass 'plasma' must define 'wp'.")
+
+        if hasattr(material, "mu") and not callable(material.mu):
+            raise ValueError(
+                f"Material '{location}' defines 'mu', which must be callable as 'mu(xi)'. "
+                "Materials without 'mu' are treated as non-magnetic."
+            )
 
     def _validate_inputs(self):
         if self.d <= 0.0:
@@ -109,8 +118,11 @@ class system:
         rL = def_reflection_coeff(self.matm, self.matL, self.deltaL)
         rR = def_reflection_coeff(self.matm, self.matR, self.deltaR)
 
+        # define magnetic permeability of the medium
+        mum = lambda xi: permeability(self.matm, xi)
+
         # define frequency (wave vector) integrand/summand
-        return lambda k0: func(k0, self.d, self.matm.epsilon, rL, rR, epsrel=epsrel, epsabs=epsabs)
+        return lambda k0: func(k0, self.d, self.matm.epsilon, rL, rR, epsrel=epsrel, epsabs=epsabs, mum_func=mum)
 
     def calculate(self, observable, ht_limit=False, fs='psd', epsrel=1.e-8, epsabs=0.0, N=None):
         '''
